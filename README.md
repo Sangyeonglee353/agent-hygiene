@@ -1,49 +1,31 @@
 # hook-cleaner
 
-Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude Code and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.
+Claude Code와 Codex 설정 파일에서 쓰지 않는 훅, 중복된 훅, 깨진 훅을 찾아내고, 사용자가 고른 훅만 백업을 남긴 뒤 안전하게 제거합니다. 이미 없어진 서버로 세션 데이터를 보내거나 스스로 코드를 내려받아 실행하는 위험한 훅도 함께 표시합니다.
 
-It also flags risky hooks: ones that send your session data to servers that are gone, or that download and run their own updates.
+[English](README.en.md)
 
-[한국어 README](README.ko.md)
+## 왜 필요한가
 
-## Why
+훅 설정은 쌓이기 마련입니다. 플러그인과 튜토리얼이 항목을 추가하고, 스크립트는 옮겨지거나 지워지고, 같은 명령이 사용자 설정과 프로젝트 설정에 두 번 등록되기도 합니다. 깨진 훅은 이벤트마다 오류를 내고, 중복된 훅은 실제로 무엇이 실행되는지 알아보기 어렵게 만듭니다.
 
-Hook configs pile up. Plugins and tutorials add entries, scripts get moved or deleted, and the same command ends up registered in both user and project settings. Broken hooks fail on every event; duplicates make it hard to see what actually runs.
+단순히 지저분한 것보다 더 위험한 경우도 있습니다. 훅은 세션이 시작될 때, 프롬프트를 보낼 때, 도구를 호출할 때마다 실행되고, 많은 훅이 대화 기록 전체를 입력으로 받습니다. 강의, 체험판, 사이드 프로젝트가 설치한 훅은 그 활동이 끝난 뒤에도 남아 있습니다.
 
-Some leftovers are worse than clutter. Hooks run on every session, prompt or tool call, and many of them receive your full transcript. Courses, trials and side projects install hooks that outlive them:
+- 강의가 끝나도 훅은 사용량과 세션 데이터를 계속 서버로 보냅니다.
+- 서버가 쓰던 무료 서브도메인(`*.up.railway.app`, `*.vercel.app`, `*.herokuapp.com` 등)이 삭제되면, 누구든 같은 이름을 다시 등록해서 그 데이터를 받을 수 있습니다.
+- 서버에서 코드를 내려받아 스스로 업데이트하는 훅이라면, 그 이름을 새로 가져간 사람이 내 컴퓨터에서 코드를 실행할 수 있습니다.
 
-- the course ends, but the hook keeps posting your usage and session data to its server;
-- the server's free-tier subdomain (`*.up.railway.app`, `*.vercel.app`, `*.herokuapp.com`, ...) is deleted, and anyone can claim the same name and start receiving that data;
-- some hooks update themselves by downloading code from that server, so whoever owns the name next can run code on your machine.
+`hook-cleaner`은 모든 훅을 나열하고, 각 훅이 어디와 통신하는지, 그 서버가 아직 살아 있는지 확인한 뒤, 사용자가 고른 훅만 백업을 남기고 제거합니다.
 
-`hook-cleaner` lists every hook, tells you what each one talks to, checks whether those servers are still alive, and removes the ones you pick, with backups.
+## 설치
 
-## What it looks like
-
-```
-Cleanup candidates: broken 1, duplicate 1, unused 0, risky 1
-
-## [HIGH] (risky) h-227f0b66  claude / user / Stop (.*)
-- source: ~/.claude/settings.json
-- command: node ~/.config/some-course/hook.js
-- endpoints: some-course.up.railway.app (alive: HTTP 200)
-- signals: network, remote-code, reads-transcript, credentials, edits-agent-settings
-- some-course.up.railway.app is a free-tier subdomain; if the owner deletes the app, someone else can claim the name
-- script can download or rewrite code it then runs (self-update, pipe-to-shell, eval)
-- reads session transcripts and can send data to some-course.up.railway.app
-- credential-like files next to the script: token
-```
-
-## Install
-
-### Claude Code (plugin)
+### Claude Code (플러그인)
 
 ```
 /plugin marketplace add Sangyeonglee353/hook-cleaner
 /plugin install hook-cleaner@hook-cleaner
 ```
 
-### Claude Code (plain skill)
+### Claude Code (스킬만 복사)
 
 ```bash
 git clone https://github.com/Sangyeonglee353/hook-cleaner
@@ -57,61 +39,46 @@ git clone https://github.com/Sangyeonglee353/hook-cleaner
 cp -r hook-cleaner/skills/hook-cleaner ~/.codex/skills/
 ```
 
-Requires Node.js 18 or later. No dependencies.
+Node.js 18 이상이 필요하고, 추가 의존성은 없습니다.
 
-## Use
+## 사용법
 
-Ask your agent: "clean up my hooks" or "훅 정리해줘". The skill scans, explains the findings, asks which hooks to remove, removes them with backups, and re-scans.
+에이전트에게 "훅 정리해줘" 또는 "clean up my hooks"라고 요청하면 됩니다. 스킬이 훅을 스캔하고, 결과를 설명하고, 어떤 훅을 지울지 물어본 뒤, 백업을 남기고 제거하고, 다시 스캔해서 확인합니다.
 
-You can also run the script yourself:
+스크립트를 직접 실행할 수도 있습니다.
 
 ```bash
-node skills/hook-cleaner/scripts/hook-cleaner.mjs scan                  # offline
-node skills/hook-cleaner/scripts/hook-cleaner.mjs scan --check-network  # also probe endpoints
-node skills/hook-cleaner/scripts/hook-cleaner.mjs scan --json
-node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66        # dry run
-node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66 --yes  # apply
+node skills/hook-cleaner/scripts/hook-cleaner.mjs scan                  # 오프라인 점검
+node skills/hook-cleaner/scripts/hook-cleaner.mjs scan --check-network  # 서버 생존 여부까지 확인
+node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66        # 미리보기
+node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66 --yes  # 실제 적용
 ```
 
-## What it finds
+## 찾아내는 훅
 
-| Category | Meaning |
+| 분류 | 의미 |
 |---|---|
-| broken | the command points at a script that no longer exists |
-| duplicate | the same event, matcher and command is registered more than once (`~/x.js` and `/home/me/x.js` count as the same) |
-| unused | belongs to a disabled plugin, or its server is gone |
-| risky | can rewrite or download code it then runs, or talks to an abandoned server |
+| broken (깨진 훅) | 명령이 가리키는 스크립트 파일이 없습니다 |
+| duplicate (중복 훅) | 같은 이벤트, matcher, 명령이 두 번 이상 등록되어 있습니다 (`~/x.js`와 절대 경로도 같은 것으로 봅니다) |
+| unused (쓰지 않는 훅) | 꺼진 플러그인의 훅이거나, 통신하는 서버가 사라졌습니다 |
+| risky (위험한 훅) | 코드를 내려받거나 고쳐서 실행할 수 있거나, 버려진 서버와 통신합니다 |
 
-## Where it looks
+## 안전 장치
 
-| Agent | Locations |
-|---|---|
-| Claude Code | user, local, project and managed `settings.json`, `statusLine`, installed plugin hooks |
-| Codex | `~/.codex/hooks.json`, project `.codex/hooks.json`, `notify` in `config.toml`, inline `[hooks]` tables, plugin hooks |
+- `scan`은 읽기만 합니다. `--check-network`를 주지 않으면 네트워크 요청을 전혀 보내지 않고, 주면 발견한 서버마다 루트 주소로 GET 요청을 한 번 보냅니다.
+- `remove`는 `--yes`를 주기 전까지 미리보기만 하며, 파일을 고치기 전에 `*.hook-cleaner-<시각>.bak` 백업을 먼저 만듭니다.
+- 플러그인 훅과 관리자 설정(managed settings)은 수정하지 않고, 플러그인을 끄거나 관리자에게 요청하라고 안내합니다.
+- 토큰 값은 출력하지 않습니다.
+- 정리를 마친 뒤 GitHub star를 눌러도 되는지 딱 한 번 물어봅니다. 사용자가 "예"라고 답했을 때만 `gh`로 star를 누르고, 답과 상관없이 다시는 묻지 않습니다. 동의 없이 자동으로 누르는 일은 없습니다.
 
-For each hook it reads the script the command points at (and small config files next to it, where endpoints often live), then reports:
+위험도는 휴리스틱으로 판정하기 때문에, 주석 안에 있는 URL처럼 실제 통신이 아닌 경우도 잡힐 수 있습니다. 그래서 스킬은 medium 이상인 훅에 대해 에이전트가 스크립트를 직접 읽고 판단하도록 지시합니다.
 
-- endpoints it talks to, including ones read from environment variables;
-- whether each endpoint is alive, gone (DNS), or showing a hosting provider's "app not found" page (`--check-network`);
-- whether the script can rewrite or download code it then runs;
-- whether it reads transcripts, touches agent settings, or keeps credential files nearby;
-- commands that point at files that no longer exist.
+## 한계
 
-## Safety
+- 스킬이나 에이전트 프론트매터에 정의된 훅은 아직 스캔하지 않습니다.
+- Codex `config.toml` 안의 인라인 `[hooks]` 테이블은 목록에는 나오지만, 직접 수정해야 합니다.
+- 실행 중에 원격 데이터로 조립되는 주소는 정적 분석으로 찾을 수 없습니다.
 
-- `scan` is read-only. Without `--check-network` it makes no network requests. With it, it sends one GET to the root of each endpoint found.
-- `remove` is a dry run unless you pass `--yes`, and it writes `*.hook-cleaner-<timestamp>.bak` before editing anything.
-- Plugin hooks and managed settings are never edited; the tool tells you to disable the plugin or contact your administrator.
-- Token values are never printed.
-
-The risk levels are heuristics. A URL in a comment is not traffic; the skill tells the agent to read the script before judging anything medium or above.
-
-## Limitations
-
-- Hooks defined in skill or agent frontmatter are not scanned yet.
-- Inline `[hooks]` tables in Codex `config.toml` are reported but must be edited by hand.
-- Static analysis cannot see endpoints that are built at runtime from remote data.
-
-## License
+## 라이선스
 
 MIT
