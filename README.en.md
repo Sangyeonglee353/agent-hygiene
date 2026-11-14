@@ -1,26 +1,61 @@
+[한국어](README.md) | **English**
+
 # hook-cleaner
 
-Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude Code and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Node 18+](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)
+![Zero dependencies](https://img.shields.io/badge/dependencies-0-blue)
+![Claude Code](https://img.shields.io/badge/Claude_Code-supported-D97757)
+![Codex](https://img.shields.io/badge/Codex-supported-111111)
 
-It also flags risky hooks: ones that send your session data to servers that are gone, or that download and run their own updates.
+**Clean up the hooks piling up in Claude Code and Codex, in one pass.**
 
-[한국어](README.md)
+_The course is over. The hook it installed may still be sending your conversations somewhere._
 
-## Why
+[Quick start](#quick-start) • [See it work](#see-it-work) • [What it finds](#what-it-finds) • [Install](#install) • [Safety](#safety)
 
-Hook configs pile up. Plugins and tutorials add entries, scripts get moved or deleted, and the same command ends up registered in both user and project settings. Broken hooks fail on every event; duplicates make it hard to see what actually runs.
+---
 
-Some leftovers are worse than clutter. Hooks run on every session, prompt or tool call, and many of them receive your full transcript. Courses, trials and side projects install hooks that outlive them:
+## Who this is for
 
-- the course ends, but the hook keeps posting your usage and session data to its server;
-- the server's free-tier subdomain (`*.up.railway.app`, `*.vercel.app`, `*.herokuapp.com`, ...) is deleted, and anyone can claim the same name and start receiving that data;
-- some hooks update themselves by downloading code from that server, so whoever owns the name next can run code on your machine.
+- You pasted install commands from a **course, bootcamp or trial tool** and never looked back.
+- You open `settings.json` and **can't tell what each hook does or why it's there**.
+- You run several plugins and get **errors from broken or duplicated hooks**.
+- You need to know **where your session data goes** from a work machine.
 
-`hook-cleaner` lists every hook, tells you what each one talks to, checks whether those servers are still alive, and removes the ones you pick, with backups.
+## Why it matters
 
-## What it looks like
+Hooks run automatically on every session start, prompt and tool call, and most of them **receive your full transcript**. They also outlive the tools that installed them.
+
+1. The course ends, but the hook keeps posting your usage and session data.
+2. The owner shuts the server down, the free subdomain (`*.up.railway.app`, `*.vercel.app`, ...) is released, and **anyone can register the same name**.
+3. If the hook updates itself by downloading code from that server, whoever claims the name next **can run code on your machine**.
+
+Broken and duplicate hooks aren't dangerous, but they fail on every event and make it hard to see what actually runs.
+
+## Quick start
+
+1. Install in Claude Code. Enter the two lines **one at a time**.
+
+   ```
+   /plugin marketplace add Sangyeonglee353/hook-cleaner
+   /plugin install hook-cleaner@hook-cleaner
+   ```
+
+2. Ask your agent:
+
+   > clean up my hooks
+
+3. Read the findings and pick what to remove. The agent backs up, removes, and re-scans to confirm.
+
+That's enough to know whether you need it.
+
+## See it work
 
 ```
+# Hook cleaner
+
+Found 38 hook entries. high: 1, medium: 1, low: 1, info: 35
 Cleanup candidates: broken 1, duplicate 1, unused 0, risky 1
 
 ## [HIGH] (risky) h-227f0b66  claude / user / Stop (.*)
@@ -32,38 +67,63 @@ Cleanup candidates: broken 1, duplicate 1, unused 0, risky 1
 - script can download or rewrite code it then runs (self-update, pipe-to-shell, eval)
 - reads session transcripts and can send data to some-course.up.railway.app
 - credential-like files next to the script: token
+
+## [MEDIUM] (broken) h-5c01e9d2  claude / user / SessionStart
+- command: node ~/old-tool/start.js
+- referenced file is missing: ~/old-tool/start.js
+
+## [LOW] (duplicate) h-91b7a3f0  claude / project / Stop
+- command: npx some-notifier
+- duplicate of h-0d44c2aa (~/.claude/settings.json); Claude Code runs identical commands once, so this copy is clutter
 ```
+
+The agent doesn't dump this on you. It explains each problem in plain words and asks which hooks to remove.
+
+## What it finds
+
+| Category | Meaning | Typical case |
+|---|---|---|
+| **broken** | the command points at a script that no longer exists | the folder was deleted, the registration wasn't |
+| **duplicate** | the same event, matcher and command is registered more than once | the same hook added as `~/x.js` and as an absolute path |
+| **unused** | belongs to a disabled plugin, or its server is gone | still calling a service that shut down |
+| **risky** | can download or rewrite code it then runs, or talks to an abandoned server | a self-updating course hook |
+
+### Where it looks
+
+| Agent | Locations |
+|---|---|
+| Claude Code | user, local, project and managed `settings.json`, `statusLine`, installed plugin hooks |
+| Codex | `~/.codex/hooks.json`, project `.codex/hooks.json`, `notify` in `config.toml`, inline `[hooks]` tables, plugin hooks |
+
+It reads the script each hook runs and the small config files next to it, so it also catches endpoints kept in a separate file (`api_url`, ...) or an environment variable.
 
 ## Install
 
-### Claude Code (plugin)
+Requires Node.js 18 or later. No packages to install.
+
+**Claude Code (plugin, recommended)**
 
 ```
 /plugin marketplace add Sangyeonglee353/hook-cleaner
 /plugin install hook-cleaner@hook-cleaner
 ```
 
-### Claude Code (plain skill)
+**Claude Code (plain skill)**
 
 ```bash
 git clone https://github.com/Sangyeonglee353/hook-cleaner
 cp -r hook-cleaner/skills/hook-cleaner ~/.claude/skills/
 ```
 
-### Codex
+**Codex**
 
 ```bash
 git clone https://github.com/Sangyeonglee353/hook-cleaner
 cp -r hook-cleaner/skills/hook-cleaner ~/.codex/skills/
 ```
 
-Requires Node.js 18 or later. No dependencies.
-
-## Use
-
-Ask your agent: "clean up my hooks" or "훅 정리해줘". The skill scans, explains the findings, asks which hooks to remove, removes them with backups, and re-scans.
-
-You can also run the script yourself:
+<details>
+<summary>Run the script without an agent</summary>
 
 ```bash
 node skills/hook-cleaner/scripts/hook-cleaner.mjs scan                  # offline
@@ -73,45 +133,38 @@ node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66        
 node skills/hook-cleaner/scripts/hook-cleaner.mjs remove --id h-227f0b66 --yes  # apply
 ```
 
-## What it finds
-
-| Category | Meaning |
-|---|---|
-| broken | the command points at a script that no longer exists |
-| duplicate | the same event, matcher and command is registered more than once (`~/x.js` and `/home/me/x.js` count as the same) |
-| unused | belongs to a disabled plugin, or its server is gone |
-| risky | can rewrite or download code it then runs, or talks to an abandoned server |
-
-## Where it looks
-
-| Agent | Locations |
-|---|---|
-| Claude Code | user, local, project and managed `settings.json`, `statusLine`, installed plugin hooks |
-| Codex | `~/.codex/hooks.json`, project `.codex/hooks.json`, `notify` in `config.toml`, inline `[hooks]` tables, plugin hooks |
-
-For each hook it reads the script the command points at (and small config files next to it, where endpoints often live), then reports:
-
-- endpoints it talks to, including ones read from environment variables;
-- whether each endpoint is alive, gone (DNS), or showing a hosting provider's "app not found" page (`--check-network`);
-- whether the script can rewrite or download code it then runs;
-- whether it reads transcripts, touches agent settings, or keeps credential files nearby;
-- commands that point at files that no longer exist.
+</details>
 
 ## Safety
 
-- `scan` is read-only. Without `--check-network` it makes no network requests. With it, it sends one GET to the root of each endpoint found.
-- `remove` is a dry run unless you pass `--yes`, and it writes `*.hook-cleaner-<timestamp>.bak` before editing anything.
-- Plugin hooks and managed settings are never edited; the tool tells you to disable the plugin or contact your administrator.
-- Token values are never printed.
-- After a cleanup that removed something, the agent asks once whether you'd like to star this repo. It stars only on an explicit yes (via `gh`), and never asks again either way.
+A tool that removes hooks edits your config files, so it follows these rules:
 
-The risk levels are heuristics. A URL in a comment is not traffic; the skill tells the agent to read the script before judging anything medium or above.
+- **Read-only by default.** `scan` never edits anything.
+- **Network is opt-in.** Without `--check-network` it sends nothing. With it, one GET to the root of each endpoint found.
+- **Dry run first.** `remove` only shows the plan unless you pass `--yes`.
+- **Always backed up.** `*.hook-cleaner-<timestamp>.bak` is written before any edit. Codex `notify` is commented out, not deleted.
+- **Hands off other people's files.** Plugin files and managed settings are never edited; you're told to disable the plugin or ask your administrator.
+- **No secrets in output.** Tokens are referred to by file name only.
+- **No telemetry.** This tool sends nothing about your usage anywhere.
+- **Stars only with consent.** After a cleanup it asks once; it stars via `gh` only on an explicit yes, and never asks again.
+
+Risk levels are heuristics, and a URL in a comment is not traffic. The skill tells the agent to read the script itself before judging anything medium or above.
 
 ## Limitations
 
 - Hooks defined in skill or agent frontmatter are not scanned yet.
-- Inline `[hooks]` tables in Codex `config.toml` are reported but must be edited by hand.
-- Static analysis cannot see endpoints that are built at runtime from remote data.
+- Inline `[hooks]` tables in Codex `config.toml` are listed but must be edited by hand.
+- Endpoints assembled at runtime from remote data can't be found statically.
+
+## Contributing
+
+Issues and PRs welcome, especially:
+
+- false positives or missed hooks (with an example),
+- hook config locations for agents not yet supported,
+- "app not found" fingerprints for other hosting providers.
+
+Run tests with `npm test`.
 
 ## License
 
