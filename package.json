@@ -1,10 +1,14 @@
 {
-  "name": "hook-audit",
+  "name": "hook-cleaner",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Inventory, risk-check and clean up Claude Code and Codex hooks.",
-  "engines": { "node": ">=18" },
-  "scripts": { "test": "node --test test/hook-audit.test.mjs" },
+  "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/hook-cleaner.test.mjs"
+  },
   "license": "MIT"
 }

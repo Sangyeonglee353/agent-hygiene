@@ -1,14 +1,14 @@
 {
-  "name": "hook-audit",
-  "description": "Audit and clean up the hooks Claude Code and Codex run automatically.",
+  "name": "hook-cleaner",
+  "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.",
   "owner": {
     "name": "Sangyeonglee353"
   },
   "plugins": [
     {
-      "name": "hook-audit",
+      "name": "hook-cleaner",
       "source": "./",
-      "description": "Inventory, risk-check and clean up Claude Code and Codex hooks."
+      "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks."
     }
   ]
 }

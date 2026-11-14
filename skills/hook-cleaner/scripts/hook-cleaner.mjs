@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// hook-audit: inventory and clean up Claude Code / Codex hooks.
+// hook-cleaner: find and remove unused, duplicate, broken or risky Claude Code / Codex hooks.
 // Zero dependencies. Node >= 18.
 //
-//   node hook-audit.mjs scan   [--json] [--project DIR] [--check-network]
-//   node hook-audit.mjs remove --id ID [--id ID ...] [--yes] [--project DIR]
+//   node hook-cleaner.mjs scan   [--json] [--project DIR] [--check-network]
+//   node hook-cleaner.mjs remove --id ID [--id ID ...] [--yes] [--project DIR]
 //
 // Read-only unless `remove --yes` is given. Every edit writes a timestamped backup first.
 
@@ -359,7 +359,7 @@ function probeOrigin(origin, timeoutMs = 6000) {
     let u;
     try { u = new URL(origin); } catch { return resolve({ state: 'invalid', detail: 'bad url' }); }
     const lib = u.protocol === 'https:' ? https : http;
-    const req = lib.request(u, { method: 'GET', timeout: timeoutMs, headers: { 'user-agent': 'hook-audit/1.0' } }, (res) => {
+    const req = lib.request(u, { method: 'GET', timeout: timeoutMs, headers: { 'user-agent': 'hook-cleaner/1.0' } }, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (c) => { if (body.length < 8192) body += c; });
@@ -423,21 +423,69 @@ export async function scan(opts) {
     await Promise.all([...hosts].map(async ([h, o]) => { probes[h] = await probeHost(h, o); }));
   }
   const items = analyzed.map(({ entry, a }) => ({ ...entry, analysis: a, risk: assess(entry, a, probes) }));
+  markDuplicates(items, opts);
+  for (const i of items) i.categories = categorize(i, probes);
   const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   items.sort((x, y) => order[x.risk.level] - order[y.risk.level]);
   return { generatedAt: new Date().toISOString(), networkChecked: !!opts.checkNetwork, probes, errors, items };
 }
 
+/** Normalize a command so `node ~/x.js` and `node "C:/Users/me/x.js"` compare equal. */
+export function normalizeCommand(cmd, entry, opts) {
+  const ctx = { home: opts.home, project: opts.project, codexHome: opts.codexHome, pluginRoot: entry.pluginRoot };
+  return tokenize(cmd)
+    .map((t) => {
+      const p = expandPath(t, ctx);
+      if (!/[\\/]/.test(p)) return t;
+      const n = path.normalize(p);
+      return process.platform === 'win32' ? n.toLowerCase() : n;
+    })
+    .join(' ');
+}
+
+/**
+ * Same agent + event + matcher + command registered more than once.
+ * The first occurrence (user settings before project, settings before plugins) is kept;
+ * later ones point back to it. Disabled plugins are ignored.
+ */
+function markDuplicates(items, opts) {
+  const first = new Map();
+  for (const i of items) {
+    if (i.scope === 'plugin' && i.pluginEnabled === false) continue;
+    const body = i.command ? normalizeCommand(i.command, i, opts) : i.url;
+    if (!body) continue;
+    const key = [i.agent, i.event, i.matcher ?? '', body].join('|');
+    const orig = first.get(key);
+    if (!orig) { first.set(key, i); continue; }
+    i.duplicateOf = orig.id;
+    i.risk.reasons.push(`duplicate of ${orig.id} (${orig.source}); ${i.agent === 'claude' ? 'Claude Code runs identical commands once, so this copy is clutter' : 'it may run twice'}`);
+    if (i.risk.level === 'info') i.risk.level = 'low';
+  }
+}
+
+/** Map findings onto the cleanup categories: broken, duplicate, unused, risky. */
+export function categorize(i, probes) {
+  const c = [];
+  if (i.analysis.missing.length) c.push('broken');
+  if (i.duplicateOf) c.push('duplicate');
+  const deadHost = Object.keys(i.analysis.hosts).some((h) => ['dead', 'dangling'].includes(probes?.[h]?.state));
+  if ((i.scope === 'plugin' && i.pluginEnabled === false) || deadHost) c.push('unused');
+  if (['high', 'critical'].includes(i.risk.level) || i.analysis.signals.includes('remote-code')) c.push('risky');
+  return c;
+}
+
 function renderMarkdown(report) {
   const L = [];
   const counts = report.items.reduce((m, i) => ((m[i.risk.level] = (m[i.risk.level] || 0) + 1), m), {});
-  L.push(`# Hook audit`);
+  L.push(`# Hook cleaner`);
   L.push('');
   L.push(`Found ${report.items.length} hook entries. ` + ['critical', 'high', 'medium', 'low', 'info'].filter((k) => counts[k]).map((k) => `${k}: ${counts[k]}`).join(', '));
+  const cats = report.items.reduce((m, i) => { for (const c of i.categories) m[c] = (m[c] || 0) + 1; return m; }, {});
+  L.push(`Cleanup candidates: ` + (['broken', 'duplicate', 'unused', 'risky'].map((k) => `${k} ${cats[k] || 0}`).join(', ')));
   if (!report.networkChecked) L.push('', '_Network not checked. Re-run with `--check-network` to test whether endpoints are still alive._');
   for (const e of report.errors) L.push('', `> warning: ${e}`);
   for (const i of report.items) {
-    L.push('', `## [${i.risk.level.toUpperCase()}] ${i.id}  ${i.agent} / ${i.scope}${i.plugin ? ` / plugin ${i.plugin}` : ''} / ${i.event}${i.matcher ? ` (${i.matcher})` : ''}`);
+    L.push('', `## [${i.risk.level.toUpperCase()}]${i.categories.length ? ` (${i.categories.join(', ')})` : ''} ${i.id}  ${i.agent} / ${i.scope}${i.plugin ? ` / plugin ${i.plugin}` : ''} / ${i.event}${i.matcher ? ` (${i.matcher})` : ''}`);
     L.push(`- source: \`${i.source}\``);
     if (i.command) L.push(`- command: \`${i.command}\``);
     if (i.url) L.push(`- url: \`${i.url}\``);
@@ -467,7 +515,7 @@ export function removeEntries(opts) {
     const original = fs.readFileSync(file, 'utf8');
     let next;
     if (file.endsWith('.toml')) {
-      next = original.replace(/^(\s*notify\s*=\s*\[[\s\S]*?\])/m, (m) => m.split(/\r?\n/).map((l) => `# disabled by hook-audit ${stamp()}: ${l}`).join('\n'));
+      next = original.replace(/^(\s*notify\s*=\s*\[[\s\S]*?\])/m, (m) => m.split(/\r?\n/).map((l) => `# disabled by hook-cleaner ${stamp()}: ${l}`).join('\n'));
     } else {
       const json = JSON.parse(original);
       // delete from the highest index down so earlier indices stay valid
@@ -487,7 +535,7 @@ export function removeEntries(opts) {
       const eol = original.includes('\r\n') ? '\r\n' : '\n';
       next = JSON.stringify(json, null, 2).replace(/\n/g, eol) + (original.endsWith('\n') ? eol : '');
     }
-    const backup = `${file}.hook-audit-${stamp()}.bak`;
+    const backup = `${file}.hook-cleaner-${stamp()}.bak`;
     if (opts.yes) {
       fs.writeFileSync(backup, original);
       fs.writeFileSync(file, next);
@@ -499,7 +547,7 @@ export function removeEntries(opts) {
 
 // ---------------------------------------------------------------- main
 
-const HELP = `hook-audit: inventory and clean up Claude Code / Codex hooks
+const HELP = `hook-cleaner: inventory and clean up Claude Code / Codex hooks
 
   scan   [--json] [--check-network] [--project DIR]
   remove --id ID [--id ID ...] [--yes] [--project DIR]

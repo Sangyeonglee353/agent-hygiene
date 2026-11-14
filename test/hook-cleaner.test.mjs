@@ -5,12 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, scan, removeEntries, classifyResponse, assess, isSharedHost } from '../skills/hook-audit/scripts/hook-audit.mjs';
+import { parseArgs, scan, removeEntries, classifyResponse, assess, isSharedHost, categorize } from '../skills/hook-cleaner/scripts/hook-cleaner.mjs';
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'hook-audit', 'scripts', 'hook-audit.mjs');
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'hook-cleaner', 'scripts', 'hook-cleaner.mjs');
 
 function fixture() {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-audit-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-cleaner-'));
   const project = path.join(home, 'proj');
   const claude = path.join(home, '.claude');
   const codex = path.join(home, '.codex');
@@ -38,6 +38,9 @@ function fixture() {
     },
   };
   fs.writeFileSync(path.join(claude, 'settings.json'), JSON.stringify(settings, null, 2) + '\n');
+  // The same Stop hook registered again at project level, plus the camp hook spelled with ~
+  fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude', 'settings.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo   done' }] }, { matcher: '.*', hooks: [{ type: 'command', command: 'node ~/.config/camp/hook.js' }] }] } }));
   fs.writeFileSync(path.join(codex, 'config.toml'), 'model = "gpt-5"\nnotify = [\n  "node",\n  "/nowhere/notify.js"\n]\n\n[features]\nhooks = true\n');
   fs.writeFileSync(path.join(codex, 'hooks.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo codex' }] }] } }));
   process.env.CLAUDE_CONFIG_DIR = claude;
@@ -108,7 +111,7 @@ test('remove --yes deletes only the chosen hook, keeps the rest, writes a backup
   const after = JSON.parse(fs.readFileSync(path.join(f.claude, 'settings.json'), 'utf8'));
   assert.equal(after.model, 'opus');
   assert.deepEqual(after.hooks, { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] });
-  assert.ok(fs.readdirSync(f.claude).some((n) => n.includes('.hook-audit-') && n.endsWith('.bak')));
+  assert.ok(fs.readdirSync(f.claude).some((n) => n.includes('.hook-cleaner-') && n.endsWith('.bak')));
 });
 
 test('remove comments out Codex notify instead of deleting it', async () => {
@@ -117,7 +120,7 @@ test('remove comments out Codex notify instead of deleting it', async () => {
   const id = r.items.find((i) => i.event === 'notify').id;
   removeEntries({ ...optsFor(f), ids: [id], yes: true });
   const toml = fs.readFileSync(path.join(f.codex, 'config.toml'), 'utf8');
-  assert.match(toml, /# disabled by hook-audit \d+: notify = \[/);
+  assert.match(toml, /# disabled by hook-cleaner \d+: notify = \[/);
   assert.match(toml, /^model = "gpt-5"/m);
   assert.match(toml, /^\[features\]/m);
 });
@@ -127,4 +130,26 @@ test('CLI scan --json runs end to end', () => {
   const out = execFileSync(process.execPath, [CLI, 'scan', '--json', '--home', f.home, '--project', f.project], { env: process.env, encoding: 'utf8' });
   const r = JSON.parse(out);
   assert.ok(r.items.length >= 4);
+});
+
+test('marks duplicates across settings files, even with ~ vs absolute paths', async () => {
+  const f = fixture();
+  const r = await scan(optsFor(f));
+  const dups = r.items.filter((i) => i.categories.includes('duplicate'));
+  assert.equal(dups.length, 2);
+  for (const d of dups) {
+    assert.match(d.source, /proj/);
+    const orig = r.items.find((i) => i.id === d.duplicateOf);
+    assert.ok(orig && !orig.categories.includes('duplicate'));
+    assert.equal(orig.source, path.join(f.claude, 'settings.json'));
+  }
+});
+
+test('categorizes broken, unused and risky hooks', async () => {
+  const f = fixture();
+  const r = await scan(optsFor(f));
+  assert.ok(r.items.find((i) => i.command?.includes('missing-script')).categories.includes('broken'));
+  const camp = r.items.find((i) => i.command?.includes('hook.js') && !i.duplicateOf);
+  assert.ok(camp.categories.includes('risky'));
+  assert.ok(categorize({ ...camp, risk: { level: 'low' } }, { 'old-course.up.railway.app': { state: 'dangling' } }).includes('unused'));
 });
