@@ -1,0 +1,10 @@
+{
+  "name": "hook-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Inventory, risk-check and clean up Claude Code and Codex hooks.",
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test/hook-audit.test.mjs" },
+  "license": "MIT"
+}

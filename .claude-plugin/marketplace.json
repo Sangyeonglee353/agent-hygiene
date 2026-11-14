@@ -1,0 +1,14 @@
+{
+  "name": "hook-audit",
+  "description": "Audit and clean up the hooks Claude Code and Codex run automatically.",
+  "owner": {
+    "name": "Sangyeonglee353"
+  },
+  "plugins": [
+    {
+      "name": "hook-audit",
+      "source": "./",
+      "description": "Inventory, risk-check and clean up Claude Code and Codex hooks."
+    }
+  ]
+}
