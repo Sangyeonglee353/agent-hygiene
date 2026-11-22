@@ -1,14 +1,14 @@
 {
-  "name": "hook-cleaner",
-  "version": "0.1.0",
+  "name": "agent-hygiene",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.",
+  "description": "Everyday safety habits for Claude Code and Codex: clean up leftover and risky hooks, keep agents out of .env files, and review risky permission settings.",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/hook-cleaner.test.mjs"
+    "test": "node --test test/hook-cleaner.test.mjs test/env-guard.test.mjs test/permission-checker.test.mjs"
   },
   "license": "MIT"
 }

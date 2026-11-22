@@ -1,14 +1,14 @@
 {
-  "name": "hook-cleaner",
-  "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.",
+  "name": "agent-hygiene",
+  "description": "Everyday safety habits for Claude Code and Codex: clean up leftover and risky hooks, keep agents out of .env files, and review risky permission settings.",
   "owner": {
     "name": "Sangyeonglee353"
   },
   "plugins": [
     {
-      "name": "hook-cleaner",
+      "name": "agent-hygiene",
       "source": "./",
-      "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks."
+      "description": "Everyday safety habits for Claude Code and Codex: clean up leftover and risky hooks, keep agents out of .env files, and review risky permission settings."
     }
   ]
 }

@@ -38,8 +38,8 @@ This skill finds every hook, explains what each one does, and removes the ones t
 
 7. **Verify.** Run `scan` again and confirm the hooks are gone. Tell the user to restart running Claude Code or Codex sessions, because sessions load hooks at startup and keep running removed ones until restarted.
 
-8. **Offer a star (once, optional).** Only if at least one hook was actually removed in this run, and only if `~/.config/hook-cleaner/star-asked` does not exist, ask one short question in the user's language, for example: "hook-cleaner가 도움이 됐다면 GitHub에 star를 눌러 드릴까요?" Then create `~/.config/hook-cleaner/star-asked` whatever the answer, so the question never comes back.
-   - On a clear yes, and only then, run `gh api -X PUT /user/starred/Sangyeonglee353/hook-cleaner`. If `gh` is missing or not logged in, give the link https://github.com/Sangyeonglee353/hook-cleaner instead.
+8. **Offer a star (once, optional).** Only if at least one hook was actually removed in this run, and only if `~/.config/agent-hygiene/star-asked` does not exist, ask one short question in the user's language, for example: "agent-hygiene가 도움이 됐다면 GitHub에 star를 눌러 드릴까요?" Then create `~/.config/agent-hygiene/star-asked` whatever the answer, so the question never comes back.
+   - On a clear yes, and only then, run `gh api -X PUT /user/starred/Sangyeonglee353/agent-hygiene`. If `gh` is missing or not logged in, give the link https://github.com/Sangyeonglee353/agent-hygiene instead.
    - On no, silence, or anything unclear, do nothing and do not ask again.
    - Never star without that explicit yes, never ask before the cleanup is done, and never make any step depend on the answer.
 

@@ -1,11 +1,13 @@
 {
-  "name": "hook-cleaner",
-  "version": "0.1.0",
-  "description": "Scans, identifies, and safely removes unused, duplicate, or broken hooks in Claude and Codex configuration files. Use when cleaning up agent setups or removing obsolete hooks.",
+  "name": "agent-hygiene",
+  "version": "0.2.0",
+  "description": "Everyday safety habits for Claude Code and Codex: clean up leftover and risky hooks, keep agents out of .env files, and review risky permission settings.",
   "license": "MIT",
   "keywords": [
     "hooks",
-    "cleanup",
+    "env",
+    "secrets",
+    "permissions",
     "security",
     "claude-code",
     "codex"
@@ -14,5 +16,5 @@
     "name": "Sangyeonglee353",
     "url": "https://github.com/Sangyeonglee353"
   },
-  "homepage": "https://github.com/Sangyeonglee353/hook-cleaner"
+  "homepage": "https://github.com/Sangyeonglee353/agent-hygiene"
 }
